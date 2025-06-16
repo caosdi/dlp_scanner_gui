@@ -1,0 +1,7 @@
+pyperclip
+PyPDF2
+python-docx
+beautifulsoup4
+pyinstaller
+ttkbootstrap
+pyahocorasick
