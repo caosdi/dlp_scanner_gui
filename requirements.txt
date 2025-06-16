@@ -4,4 +4,3 @@ python-docx
 beautifulsoup4
 pyinstaller
 ttkbootstrap
-pyahocorasick
