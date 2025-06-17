@@ -309,85 +309,92 @@ def set_output_text(results_by_file):
     output_text.config(state="disabled")
 
 def run_scan():
-    selected_names = file_list.get(0, tk.END)
-    files = [file_display_to_path[name] for name in selected_names]
-    if not files:
-        messagebox.showwarning("No files", "Please select files to scan.")
-        return
-    scan_options = []
-    if var_ssn.get(): scan_options.append("SSN")
-    if var_cc.get(): scan_options.append("Credit Card")
-    if var_dl.get(): scan_options.append("US Driver License")
-    dict_terms = None
-    # Use the full path for scanning
-    dlp_dict_path = dict_full_path if var_dict.get() else None
-    if var_dict.get():
-        scan_options.append("Dictionary")
-        if not dlp_dict_path:
-            messagebox.showwarning("No dictionary", "Please select a dictionary JSON file.")
+    try:
+        selected_names = file_list.get(0, tk.END)
+        files = [file_display_to_path[name] for name in selected_names]
+        if not files:
+            messagebox.showwarning("No files", "Please select files to scan.")
             return
-        if var_dict_specific.get():
-            dlp_dict = load_dlp_dict(dlp_dict_path)
-            with open(dlp_dict_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            all_categories = sorted(data.keys())
-            cat_win = tk.Toplevel(root)
-            cat_win.title("Select Dictionary Categories")
-            cat_win.geometry("400x400")
-            lb_frame = ttk.Frame(cat_win)
-            lb_frame.pack(fill="both", expand=True, pady=10)
-            lb = tk.Listbox(lb_frame, selectmode=tk.MULTIPLE, width=50, height=8)
-            lb.pack(side="left", fill="both", expand=True)
-            scrollbar = ttk.Scrollbar(lb_frame, orient="vertical", command=lb.yview)
-            scrollbar.pack(side="right", fill="y")
-            lb.config(yscrollcommand=scrollbar.set)
-            for c in all_categories:
-                lb.insert(tk.END, c)
-            selected_categories = []
-            def set_categories():
-                selected = [all_categories[i] for i in lb.curselection()]
-                nonlocal dict_terms
-                dict_terms = []
-                for cat in selected:
-                    dict_terms.extend(data[cat])
-                cat_win.destroy()
-            ttk.Button(cat_win, text="OK", command=set_categories).pack(pady=8)
-            root.wait_window(cat_win)
-            if not dict_terms:
-                messagebox.showwarning("No categories", "No dictionary categories selected.")
+        scan_options = []
+        if var_ssn.get(): scan_options.append("SSN")
+        if var_cc.get(): scan_options.append("Credit Card")
+        if var_dl.get(): scan_options.append("US Driver License")
+        dict_terms = None
+        dlp_dict_path = dict_full_path if var_dict.get() else None
+        if var_dict.get():
+            scan_options.append("Dictionary")
+            if not dlp_dict_path:
+                messagebox.showwarning("No dictionary", "Please select a dictionary JSON file.")
                 return
-    # Show progress bar
-    progress.grid()
-    progress.start()
-    root.update_idletasks()
-    results_by_file = scan_files(files, scan_options, dlp_dict_path, dict_terms)
-    progress.stop()
-    progress.grid_remove()
-    set_output_text(results_by_file)
-    # Copy plain text to clipboard (without color)
-    plain_lines = []
-    for fname, matches in results_by_file.items():
-        plain_lines.append(fname)
-        # Organize matches by source for clipboard as well
-        body_matches = []
-        attachments = {}
-        for tag, m, source in matches:
-            if source == "body":
-                body_matches.append(m)
-            elif source.startswith("attachment: "):
-                att_name = source.replace("attachment: ", "")
-                attachments.setdefault(att_name, []).append(m)
-        if body_matches:
-            plain_lines.append("\tBody/subject")
-            for m in body_matches:
-                plain_lines.append(f"\t\t{m}")
-        for att_name, att_matches in attachments.items():
-            plain_lines.append(f"\tAttachment - {att_name}")
-            for m in att_matches:
-                plain_lines.append(f"\t\t{m}")
-        plain_lines.append("")
-    pyperclip.copy("\n".join(plain_lines).strip())
-    messagebox.showinfo("Copied", "Results copied to clipboard.")
+            if var_dict_specific.get():
+                dlp_dict = load_dlp_dict(dlp_dict_path)
+                with open(dlp_dict_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                all_categories = sorted(data.keys())
+                cat_win = tk.Toplevel(root)
+                cat_win.title("Select Dictionary Categories")
+                cat_win.geometry("400x400")
+                lb_frame = ttk.Frame(cat_win)
+                lb_frame.pack(fill="both", expand=True, pady=10)
+                lb = tk.Listbox(lb_frame, selectmode=tk.MULTIPLE, width=50, height=8)
+                lb.pack(side="left", fill="both", expand=True)
+                scrollbar = ttk.Scrollbar(lb_frame, orient="vertical", command=lb.yview)
+                scrollbar.pack(side="right", fill="y")
+                lb.config(yscrollcommand=scrollbar.set)
+                for c in all_categories:
+                    lb.insert(tk.END, c)
+                selected_terms_container = {"terms": None}
+                def set_categories():
+                    selected = [all_categories[i] for i in lb.curselection()]
+                    terms = []
+                    for cat in selected:
+                        terms.extend(data[cat])
+                    selected_terms_container["terms"] = terms
+                    cat_win.destroy()
+                ttk.Button(cat_win, text="OK", command=set_categories).pack(pady=8)
+                root.wait_window(cat_win)
+                dict_terms = selected_terms_container["terms"]
+                if not dict_terms:
+                    messagebox.showwarning("No categories", "No dictionary categories selected.")
+                    return
+        # Show progress bar
+        progress.grid()
+        progress.start()
+        root.update_idletasks()
+        print(f"Scanning files: {files}, options: {scan_options}, dict_terms: {dict_terms}")
+        results_by_file = scan_files(files, scan_options, dlp_dict_path, dict_terms)
+        progress.stop()
+        progress.grid_remove()
+        set_output_text(results_by_file)
+        # Copy plain text to clipboard (without color)
+        plain_lines = []
+        for fname, matches in results_by_file.items():
+            plain_lines.append(fname)
+            # Organize matches by source for clipboard as well
+            body_matches = []
+            attachments = {}
+            for tag, m, source in matches:
+                if source == "body":
+                    body_matches.append(m)
+                elif source.startswith("attachment: "):
+                    att_name = source.replace("attachment: ", "")
+                    attachments.setdefault(att_name, []).append(m)
+            if body_matches:
+                plain_lines.append("\tBody/subject")
+                for m in body_matches:
+                    plain_lines.append(f"\t\t{m}")
+            for att_name, att_matches in attachments.items():
+                plain_lines.append(f"\tAttachment - {att_name}")
+                for m in att_matches:
+                    plain_lines.append(f"\t\t{m}")
+            plain_lines.append("")
+        pyperclip.copy("\n".join(plain_lines).strip())
+        messagebox.showinfo("Copied", "Results copied to clipboard.")
+    except Exception as e:
+        progress.stop()
+        progress.grid_remove()
+        messagebox.showerror("Error", f"An error occurred: {e}")
+        print(f"Error in run_scan: {e}")
 
 run_btn = ttk.Button(frame, text="Run Scan", command=run_scan)
 run_btn.grid(row=7, column=0, columnspan=4, pady=12, sticky="ew")
